@@ -1,0 +1,16 @@
+.playerName{
+    display: block;
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.hostName{
+    color:red;
+}
+
+.playersList{
+    border-style: solid;
+    /* border- */
+    border-radius: 10%;
+    /* margin-left: 5em; */
+}

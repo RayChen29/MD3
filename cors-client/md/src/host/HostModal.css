@@ -1,0 +1,46 @@
+
+.hostForm label{
+    /* align-items: center; */
+    display: block;
+  }
+  
+  .hostButton{
+    display:block;
+    /* left:50%; */
+    margin-left: 21em;
+    border-color: #535bf2;
+  }
+
+  
+.hostModal label{
+  /* align-items: center; */
+  display: block;
+}
+
+.closeButton{
+  display:block;
+  /* position: fixed; */
+  /* bottom:70%; */
+  padding:1em;
+  /* right:1%; */
+
+}
+
+.formDiv{
+  position:fixed;
+  background-color: white;
+  width: 25em;
+  height:35em;
+  /* left:60%; */
+  bottom: 40%;
+}
+
+.formDiv label{
+  display:block;
+}
+
+.formDiv button{
+  display: block;
+  margin:0 auto;
+}
+
