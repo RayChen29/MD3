@@ -13,25 +13,24 @@
   const HostModal: React.FC<HostModal> = ({onClose}) => {
     const navigate = useNavigate()
     const hostGameSocket = io('http://localhost:8080');//Remember to swap this out when deployment comes
+//TODO?: set a useEffect for this, not sure what the dependency would be though.    
     hostGameSocket.on('connect', () =>{
-      console.log('Connected from React Side');
+      console.log('Connected from Client Side');
     });
-
-    hostGameSocket.on('redirectToLobby',(submitInfo) => { //Issue: roomDetails not being processed properly here despite being fine while it was at the server side.
+//TODO?: set a useEffect for this, not sure what the dependency would be though. Might not need since not re-rendering with it
+    hostGameSocket.on('redirectToLobby',(submitInfo) => { 
       const {userId, userName, roomCode } = submitInfo;
-      //TODO: Redirect client to server with this data.
+      //TODO: Redirect client to the game room with this data.
         localStorage.setItem("userName", userName);
         localStorage.setItem("userId", userId);
-        //Session storage stuff should really be going to a backend, but need to test routing in general first.
+        //Session storage stuff should prob be going to a backend, but seems to work so far
         sessionStorage.setItem("roomCode",roomCode);
-        console.log(roomCode);//becomes undefined when directly accessed
-        hostGameSocket.disconnect();//Figuring that since we are leaving htis page, we can just do this instead ofuseEffect?
-        //Redirect to the room?
+        hostGameSocket.disconnect();//Figuring that since we are leaving this page, we can just do this instead ofuseEffect?
+        //Redirect to the room
         navigate('/'+roomCode);//How to correct this?
       })
       
-    
-      //Nothing is actually being handled here; just generates a random string to be used as a room code.
+      //Generates a random string to be used as a room code.
     const handleSubmit = () => {
       const characters = "ABCDEFGHIJKLMNPQRSTUVWXYZ0123456789";//REMINDER: toUpper in the join section.
       let roomCode = '';
@@ -59,7 +58,7 @@
             })}
             onSubmit={async (values,{setSubmitting}) => { 
               setSubmitting(false); //I think don't need setSubmitting, but don't want things to break yet.
-              let generateCodeLoop = true;//Intention: use this to (eventually) generate a working room code to redirect to..
+              let generateCodeLoop = true;//Generates a working room code as long as needed
 
               try {
                 while(generateCodeLoop == true)
@@ -69,7 +68,6 @@
                     // if(response == true)
                     if(response == false) //Do this stuff if room wasn't made, kill loop.
                     {
-                      // console.log('sending host request with values: ' + values.hostName); //issue involves sending everything at once without structuring..
                       generateCodeLoop = false; 
                       const userId = localStorage.getItem('userId');
                       const submitInfo = {
@@ -78,7 +76,7 @@
                         password:values.password,
                         roomCode: values.roomCode,
                       }
-                      hostGameSocket.emit("hostRoom",{...submitInfo}); //Hoping this spreads.
+                      hostGameSocket.emit("hostRoom",{...submitInfo});
                     }
                   }
               }

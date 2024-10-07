@@ -1,14 +1,19 @@
 //TODO: Make joinroom navigate people properly. Probably entails hopping into the client.
-//TODO: Need to fix client's ability to join rooms from the button.  Been broken ever since trying to fix infrastructure
 //TODO: Add the periodic room check, make sure empty rooms don't exist too long.
+//TODO: handle host properties on both client and server sides
 
-//TODO: handle host properties on both client and server sides.
+//TODO? Try to split events into ingame vs pregame for readability sake.
+//TODO: Make ingame events
+
+//Lobby events are on this file.
 import express = require("express");
 import { createServer } from "node:http";
 import { Server } from "socket.io";
+import {createDeck, shuffleDeck} from "./inGame/deck";
+// import '.inGame/inGame.ts';
+// import * from `./inGame/inGame`;
+// import * from './inGame/deck';
 const app = express();
-//chat?
-// app.use('cors');
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
@@ -16,14 +21,41 @@ const io = new Server(server, {
   },
   connectionStateRecovery: {},
 });
-//TODO: maybe migrate players' rope prop elsewhere? But then again makes half sense either way.
-//TODO? Add a ready property to each player on both server and client side
+
+
+//TODO: maybe migrate players' rope prop elsewhere? But then again makes half sense either way..
+const gameEvents = require('./inGame/inGame')
+
+interface Card {
+  name:string;
+  type:string; //Action, Property, Money, Reactive
+  colors?:string[];//what colors are this card applicable to?
+  //tbh not how to to smoothly implement colors or houses/hotels
+  currentColor?:number;//should probably be empty at first, but number prob determine what color it is at the moment?
+  value:number;
+  quantity:number;
+  //inSet flag? idk
+
+  // methods?:
+}
+
+//todo: create fields: properties/sets, money, hand
+//TODO: Handle the player d/c / afk too long case.
+interface Field {
+  hand:Card[];
+  money:Card[];
+  //need a smoother way to handle properties.
+  props:Card[];
+}
+
 interface Player {
   userId: string;
   userName: string;
-  rope: number;
+  rope: number;//How to modify this number over time?
   //Unsure if this can pull through
   isReady:boolean;
+  //in game
+  
 }
 
 interface Room {
@@ -37,6 +69,12 @@ interface Room {
 
     //todo: max length allowed. 5 for now, but need to account later
     maxPlayers: number;
+
+    //in-game stuff
+    deck:Card[];//
+    discard:Card[];
+    fields:Record<string,Field>//Each player's boards; need to dynamic adjust for number of players.
+
   };
 }
 
@@ -69,6 +107,7 @@ const createPlayer = (userId:string,userName:string): Player => ({
 //refactor this for the new format, or just take the specifics from the submitted info?
 //TODO?: on sufficient disconnect time / game end / afk time, unbind userId from room code
 
+
 const playerJoinRoom = (
   roomId: string,
   userInfo: Player,
@@ -84,7 +123,8 @@ const playerJoinRoom = (
   const roomPw = password ? password : "";
   roomMax = roomMax ? roomMax : defaultRoomCap
   // if(!password)
-  if (!room || (room.players.length == 0)) {//If room don't exist, make room
+  if (!room || room.players.length === 0) {
+    // Room doesn't exist, create a new one
     rooms[roomId] = {
       inGame: false,
       players: [userInfo],
@@ -93,8 +133,16 @@ const playerJoinRoom = (
       password: roomPw,
       countdown: 6,
       timeTicking: false,
-
-    }; //Should this be userId instead? Idk.
+      deck: [], // Initialize the deck here
+      discard: [], // Initialize discard pile here
+      fields: {
+        [userInfo.userId]: {
+          hand: [],
+          money: [],
+          props: [],
+        }, // Dynamically create fields for the user
+      },
+    };
     userRoomMap[userInfo.userId] = roomId;//artifact? idk
     console.log("JOINED PLAYERS NEW ROOM", rooms[roomId].players);
     return [true,true];
@@ -109,6 +157,17 @@ else {//room exists
       maxPlayers: roomMax,
       countdown:6,
       timeTicking:false,
+      //in game stuff/initialization?
+      //fields:
+      deck: [], // Initialize the deck here
+      discard: [], // Initialize discard pile here
+      fields: {
+        [userInfo.userId]: {
+          hand: [],
+          money: [],
+          props: [],
+        }, // Dynamically create fields for the user
+      },
     };
     console.log("Room exists, but was empty. Player joined room");
     } 
@@ -137,16 +196,18 @@ else {//room exists
       if (room.password && password !== room.password) return [false, false];
       //No free slots for new joiners.
       if (room.players.length >= room.maxPlayers) return [false, false];
-
        //if all conditions true, get them in.
        console.log('player was not here yet, so create');
-      //  const newPlayer = createPlayer(userInfo.userId,userInfo.userName);
-      //  rooms[roomId].players.push(newPlayer);//maybe reword
-      //maybe need reword?
       if(rooms[roomId])
+      {
         rooms[roomId].players = [...rooms[roomId].players,userInfo];
-      // else
-        // rooms[roomId].players = [];
+        rooms[roomId].fields[userInfo.userId] = {
+          hand:[],
+          money:[],
+          props:[],
+        }
+      }
+        
     }
 
     console.log("JOINED PLAYERS", rooms[roomId]?.players);
@@ -172,20 +233,30 @@ setInterval(() => {
         io.to(roomCode).emit('playerReadyToggle',hostId,false,6);
       }
     }
-    if(room?.timeTicking == true) //tick the countdown 1 second
+    if(room?.timeTicking == true && room.countdown > 0) //tick the countdown 1 second
     {
       const countdown = room.countdown -= 1 
       //ISSUE: When someone unreadies, the countdown resets, but does not stop ticking.
     
       console.log(`countdown be like: ${countdown}`)
-      // room.countdown -= 1;
       io.to(roomCode).emit('startCountdownUpdate',(countdown));//Do we need to send any additional data?
+      if(countdown == 0 && room.inGame == false)
+      {
+        room.inGame = true;
+        //figure out proper number of decks to shuffle together, etc.+
+        const nrDecks:number = Math.ceil(room.players.length / 5)
+        room.deck = createDeck(nrDecks);//todo: how to properly import?
+        room.deck = shuffleDeck(room.deck);
+      }
+        
+      //TODO? Identify conditions to make inGame false, prob involving after the game concludes.
     }
             //Prayging for above to work out.
   }
  }, 1000);
 
 io.on("connection", (socket) => {
+
   console.log("a user connected");
 
   socket.on("customDisconnect", (userId, roomCode) => {
@@ -364,7 +435,7 @@ socket.on('gameStartCountdown',(roomCode) => {
 //TODO: Clear interval / set countdown to 6 when the appropriate reason comes up.
 
 
-
+ gameEvents(io,socket);
 });
 
 server.listen(8080, () => {

@@ -2,32 +2,28 @@
 
   //TODO? Give chance to change name from direct joining links?
   //noticing: people can't directly join link. Not sure if this logic should stay.
-  //TODO: disable ready/start buttons if only host is in room.
+  //TODO? disable ready/start buttons if only host is in room.
   import {  
     createContext,
-    //  useContext,
      useState,
       useEffect,
-      // ReactNode
     } from 'react';
-  // import {Socket},io from 'socket.io-client';
   import {Socket} from 'socket.io-client';
   import io from 'socket.io-client';
   import PickNameModal from './lobby/PickNameModal';
   import JoinedPlayers from './lobby/JoinedPlayersCard';
-  // import IsFullModal from './lobby/IsFullModal';
+
   import IsNotLegitModal from './lobby/IsNotLegitModal';
   import GameRoomSettingsComponent from './lobby/GameRoomSettingsComponent';//TODO: Add props and events for Rooms on server side and setting adjustments
   import {useNavigate} from 'react-router-dom';
   import "./GameRoom.css";
 
-  //Issue: when this function runs from the disconnect button(I'm assuming at least), it will grab from the rest of the link for subsequent runs.
-  const getRoomCode = () => {//used for room size check prior to entering. If wanted more secure, would do toher stuff?
+  //Issue: when this function runs from the disconnect button(I'm assuming at least), it will grab from the rest of the link for subsequent runs?
+  const getRoomCode = () => {
     const roomCode = window.location.href;
     let code = '';
     if(roomCode[-1] === '/')
       code = roomCode.slice(-5,-1)
-      // return roomCode.slice(-5,-1)//I think I got it.
     else
       code = roomCode.slice(-4)
       // return roomCode.slice(-4)
@@ -51,10 +47,6 @@ interface GameContextValues {
   setPlayers: React.Dispatch<React.SetStateAction<PlayersContextType[]>>;
   host: string | null;
   setHost: React.Dispatch<React.SetStateAction<string | null>>;
-  //hoping
-  // isHost: boolean;
-  // setIsHost: React.Dispatch<React.SetStateAction<PlayersContextType[]>>;
-  //Maybe add setIsHost?
   userId: string | null;
   password: string | null;
   setPassword: React.Dispatch<React.SetStateAction<string|null>>;
@@ -63,12 +55,7 @@ interface GameContextValues {
   userSocket:Socket;
   roomCode: string;
 }
-//Unsure if want to keep PlayersContext, provided the advent of GameContext works out.
-// export const PlayersContext = createContext<PlayersContextType[] | null>(null);//Unsure if keep this if we going to next step.
 export const GameContext = createContext<GameContextValues | undefined>(undefined);
-
-//TODO: Make context for IsHost, and whether or not they can change settings.
-
   const userSocket = io('http://localhost:8080', { autoConnect: false });//I feel like I want autoConnect now, but idk.
 
   export default function GameRoom() {
@@ -78,15 +65,12 @@ export const GameContext = createContext<GameContextValues | undefined>(undefine
     const [players, setPlayers] = useState<PlayersContextType[]>([]);//Hmmmm. Idk why I didn't get this right before.
     const [isLegitRoom, setIsLegitRoom] = useState(true);//same deal as isFull, but for if room is created yet.
     //Maybe add hard lock for player cap later?
-    // const [isHost, setIsHost] = useState(false);//host gets to adjust properties of a game room, inc. passwords, max no. of players, and starting game on majority?
     const [host, setHost] = useState<string | null>(null);
     //TODO: Value for host should prob just be the userId of the host.
-    //TODO: implement state for passwords.
     const [password,setPassword] = useState<string | null>(null);
-    //TODO: Handle maxPlayers
+    //TODO: Handle maxPlayers inc dropdown and deck handling (LATER)
     const [maxPlayers,setMaxPlayers] = useState(5);
-    const [gameStartCountdown,setGameStartCountdown] = useState(6);//goes down from 5 to 0 then starts game, swaps out lobby components for game components.
-    //countdown going to be dependent on the server though.
+    const [gameStartCountdown,setGameStartCountdown] = useState(6);//goes down from 5 to 0 then starts game, directs clients to game page
     //TODO still: player rope countdown.
     const roomCode = getRoomCode();
     const navigate = useNavigate();
@@ -109,27 +93,20 @@ export const GameContext = createContext<GameContextValues | undefined>(undefine
     setPlayers(playerList); 
     console.log('Updated Roster: ', players);//players turns out empty...?
   });
-  // userSocket.on('playerLeave', (userId,roomPlayers:PlayersContextType[]) => {//hopefully same thing as playerJoin
   userSocket.on('playerLeave', (userId,roomPlayers:PlayersContextType[],newHost:string) => {
     console.log('playerLeave happened: roomPlayers roster: ', roomPlayers);
     setPlayers(roomPlayers); 
     console.log('Updated Roster: ', players);//players turns out empty...
     setHost(newHost);//Prayge
-    // if(newHost === userId)
-    //   setIsHost(true);//TODO: make Game Room Settings Component.
   });
     return () => {
-      // const roomCode = getRoomCode();//this becomes undefined when sending to server.
       userSocket.removeAllListeners();
-      //emit userDC event here I guess
+      //emit userDC event here I guess if ever
     };
   },[])
 
   useEffect(() => {
-//define connecting function here maybe? Wouldn't like to but seems like no choice b/c IDE ...
     const joinRoom = async () => {
-      //since players are made in the join/host rooms, are undefineds being created here?
-
       const userInfo = {
         userId: userId,
         userName:userName
@@ -158,7 +135,6 @@ export const GameContext = createContext<GameContextValues | undefined>(undefine
       joinRoom();
       setHasName(true);
     }
-      // joinRoom();
   },[userName])
 
   useEffect(()=>{
@@ -172,7 +148,6 @@ export const GameContext = createContext<GameContextValues | undefined>(undefine
 
   //Hmmm 
     useEffect(() => {
-      //Would this even trigger?
       userSocket.on('playerReadyToggle',(userId,updatedReadyStatus,countdown) => {
         const updatedPlayers = players.map(p=>p.userId===userId ? 
           {...p,isReady:updatedReadyStatus} : p);
@@ -180,9 +155,7 @@ export const GameContext = createContext<GameContextValues | undefined>(undefine
         setGameStartCountdown(countdown)
       })
       return () => {
-        // const roomCode = getRoomCode();//this becomes undefined when sending to server.
-        userSocket.off('playerReadyToggle');//hope?
-        //emit userDC event here I guess
+        userSocket.off('playerReadyToggle');
       };
     },[players])
 
@@ -191,6 +164,14 @@ export const GameContext = createContext<GameContextValues | undefined>(undefine
         console.log(`COUNTDOWN: ${countdown}`)
         setGameStartCountdown(countdown);
       })
+      if(gameStartCountdown == 0)//move onto the in-game page
+      {
+        userSocket.disconnect();
+        navigate('/game');
+        
+      }
+      //need to disconnect here.
+        
       //TODO? Return statement to shut off the event?
       return () => {
         userSocket.off('countdownUpdate'); // cleanup listener when component unmounts
@@ -202,21 +183,18 @@ export const GameContext = createContext<GameContextValues | undefined>(undefine
       setUserName(name);
       setHasName(true);
     };
-//error to others after leaving: Players context is not an array, type is string.
+
     const handleLeave = () => {
       console.log('The room code prior to customDisc', roomCode);
       userSocket.emit('customDisconnect',userId, roomCode);
       navigate(-1);
     }
 
-//TODO: Add a countdown
-//TODO?: add a condition for the gameStartCountdown appearing
     return (
       <div>
         {!isLegitRoom && <IsNotLegitModal/>}
         {(hasName == false) && <PickNameModal onNameSubmit={handleNameSubmit} />}
         <div className="preGamePage">
-          {gameStartCountdown == 6 && <p>GAME NO START YET</p>}
           {gameStartCountdown < 6 && <p>Game will start in ${gameStartCountdown} seconds unless someone cancels.</p> }
           <GameContext.Provider value={{roomCode, players, userId, host, password, maxPlayers,
            setPlayers, setHost, setPassword, setMaxPlayers, userSocket}}>

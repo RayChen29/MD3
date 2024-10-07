@@ -4,13 +4,9 @@ import './App.css'
 import HostModal from './host/HostModal';
 import JoinForm from './join/JoinForm';
 import io from 'socket.io-client';
-// import {
-//   Outlet, //Used to render child components I think
-//   Link, //Used with Outlet to support client side rendering I think
-// } from 'react-router-dom';
 
 export default function Front() { //AKA App
-  //TODO: Maybe make this a cookie(thinking 1 day or so)
+  //TODO? Maybe make this a cookie(thinking 1 day or so)
   const idCheck = async () => {
     console.log('idcheck');
     const id = localStorage.getItem('userId');
@@ -22,12 +18,9 @@ export default function Front() { //AKA App
           console.log('connecting for id make');
           //Process seems to be stuck here.
           const response = await idSocket.emitWithAck('generateId');
-          // if (response.userId) { // Handle case where this doesn't go through
-          //userId gets generated twice (can tell because server side says so)
-          //However, userId becomes undefined according to localStorage. 
-          //Fixed now I believe. Problem was assigning userId to a string.
+
             localStorage.setItem('userId', response.userId);
-            console.log('userId should be set',response.userId);//userId comes out undefined. I guess this mean it got fkd from server side.
+            console.log('userId should be set',response.userId);
           // }
         } catch (error) {
           console.error('Error generating ID:', error);
@@ -47,27 +40,22 @@ export default function Front() { //AKA App
 
   useEffect(() => {
 
-      
-    // Add or remove the 'darkBackgroundBody' class to the body element based on 'isHostPage'
     if (isHostPage) {
       document.body.classList.add('darkBackgroundBody');
     } else {
       document.body.classList.remove('darkBackgroundBody');
     }
-    // Clean up the effect
     return () => {
       document.body.classList.remove('darkBackgroundBody');
     };
   }, [isHostPage]);
 
   useEffect(() => {
-    // Add or remove the 'darkBackgroundBody' class to the body element based on 'isJoinPage'
     if (isJoinPage) {
       document.body.classList.add('darkBackgroundBody');
     } else {
       document.body.classList.remove('darkBackgroundBody');
     }
-    // Clean up the effect
     return () => {
       document.body.classList.remove('darkBackgroundBody');
     };

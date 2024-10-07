@@ -12,9 +12,6 @@ import {
   // Link //I think use alongside Outlet to allow Client Side Rendering?
 } from "react-router-dom";
 // import io from 'socket.io-client';
-//I think need useContext here.
-// type 
-// export const SocketContext = createContext();//prayge
 
 const router = createBrowserRouter([
   {
@@ -28,11 +25,15 @@ const router = createBrowserRouter([
     element: <GameRoom/>,
     errorElement: <ErrorPage/>,
   },
+  {
+    path:"/:roomCode/game",
+    //need to make InGame element
+    errorElement: <ErrorPage/>,
+  }
 ]);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RouterProvider router={router} />
-    {/* <App /> */}
   </React.StrictMode>,
 )

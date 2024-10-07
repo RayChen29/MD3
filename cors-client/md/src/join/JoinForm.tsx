@@ -15,18 +15,12 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Create the socket connection with autoConnect set to false
     const joinGameSocket = io('http://localhost:8080', { autoConnect: false });
     setSocket(joinGameSocket);
 
-    // Add an event listener for the 'connect' event
     joinGameSocket.on('connect', () => {
       console.log('Join Game from React Side');
     });
-
-
-
-// This doesn't exist btw.
     joinGameSocket.on('joinRoomResponse', (submitInfo) => {
       const { userId, userName, roomCode } = submitInfo;
       localStorage.setItem('userName', userName);
@@ -36,7 +30,6 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
       navigate('/' + roomCode);
     });
 
-    // Clean up the socket connection on component unmount
     return () => {
       joinGameSocket.disconnect();
     };
@@ -65,7 +58,6 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
         })}
         onSubmit={async (values, { setSubmitting }) => {
           const userId = localStorage.getItem('userId');
-          //...
           const submitInfo = {
             userId,
             userName: values.userName,
@@ -79,28 +71,14 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
             if(!userId == undefined)
             {
               const generatedUserId = await socket.emitWithAck('generateId');
-              // userId = generatedUserId.userId;
-              console.log
               submitInfo.userId = userId;
               localStorage.setItem('userId', generatedUserId.userId);
             }
-              
-
             const tryToNav = await socket.emitWithAck('enterLink',submitInfo);      
-            console.log(tryToNav.status);//failed for some reason
-            console.log(tryToNav.roomCode);//undefined b/c never gets here.
             if(tryToNav.status === 'failed')
               handleFail();
             else
-            {
-              // localStorage.setItem('userName', tryToNav.userName); 
-              // localStorage.setItem('userId', tryToNav.userId);//idk which userId should be used.
-              // sessionStorage.setItem('roomCode', tryToNav.roomCode);
-              // joinGameSocket.disconnect();//
               navigate(values.roomCode);
-            }
-
-              
           }
         }}
       >
@@ -132,7 +110,6 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
               {...formik.getFieldProps('password')}
             />
             {formik.touched.password && formik.errors.password ? (<div>{formik.errors.password}</div>) : null}
-            {/* <button type='submit'>Join Room</button> */}
             <button
               type='button'
               onClick={() => {
@@ -143,7 +120,6 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
             >
               Join Room
             </button>
-            {/* TODO: implement failcounter */}
             {failCounter > 0 && `Could not join the room. Either full, wrong password, or doesn't exist (${failCounter})`}
           </form>
         )}
