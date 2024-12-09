@@ -1,9 +1,8 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Formik } from 'formik';
 import * as Yup from 'yup';
-import io, { Socket } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
+import { SocketContext } from '../SocketContext'; // Import SocketContext
 
 interface JoinModalProps {
   onClose: () => void;
@@ -11,33 +10,29 @@ interface JoinModalProps {
 
 const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
   const [failCounter, setFailCounter] = useState(0);
-  const [socket, setSocket] = useState<Socket | undefined>(undefined);
+  const { socket } = useContext(SocketContext);  // Access socket from context
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const joinGameSocket = io('http://localhost:8080', { autoConnect: false });
-    setSocket(joinGameSocket);
-
-    joinGameSocket.on('connect', () => {
-      console.log('Join Game from React Side');
-    });
-    joinGameSocket.on('joinRoomResponse', (submitInfo) => {
-      const { userId, userName, roomCode } = submitInfo;
-      localStorage.setItem('userName', userName);
-      localStorage.setItem('userId', userId);
-      sessionStorage.setItem('roomCode', roomCode);
-      joinGameSocket.disconnect();
-      navigate('/' + roomCode);
-    });
-
-    return () => {
-      joinGameSocket.disconnect();
-    };
-  }, [navigate]);
 
   const handleFail = () => {
     setFailCounter(prevFailCounter => prevFailCounter + 1);
   };
+
+  useEffect(() => {
+    if (!socket) return;  // Ensure socket is available
+
+    socket.on('joinRoomResponse', (submitInfo) => {
+      const { userId, userName, roomCode } = submitInfo;
+      localStorage.setItem('userName', userName);
+      localStorage.setItem('userId', userId);
+      sessionStorage.setItem('roomCode', roomCode);
+      navigate('/' + roomCode);
+    });
+
+    // Clean up socket listener when component unmounts
+    return () => {
+      socket.off('joinRoomResponse');
+    };
+  }, [socket, navigate]);
 
   return (
     <div className='modalDiv'>
@@ -54,7 +49,7 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
           roomCode: Yup.string()
             .length(4, 'Room Code should be 4 characters exactly')
             .required('Need to have one of these codes.')
-            .matches(/^[A-Z0-9]+$/, 'Alphanumerics Only.')
+            .matches(/^[A-Z0-9]+$/, 'Alphanumerics Only.'),
         })}
         onSubmit={async (values, { setSubmitting }) => {
           const userId = localStorage.getItem('userId');
@@ -66,19 +61,21 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
           };
           setSubmitting(false);
 
-          if(socket){
-            socket.connect();
-            if(!userId == undefined)
-            {
+          if (socket) {
+            socket.connect();  // Connect the socket
+            if (!userId) {
               const generatedUserId = await socket.emitWithAck('generateId');
-              submitInfo.userId = userId;
+              submitInfo.userId = generatedUserId.userId;
               localStorage.setItem('userId', generatedUserId.userId);
             }
-            const tryToNav = await socket.emitWithAck('enterLink',submitInfo);      
-            if(tryToNav.status === 'failed')
+
+            // Send the join room request to the server
+            const tryToNav = await socket.emitWithAck('enterLink', submitInfo);
+            if (tryToNav.status === 'failed') {
               handleFail();
-            else
+            } else {
               navigate(values.roomCode);
+            }
           }
         }}
       >
@@ -92,6 +89,7 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
               {...formik.getFieldProps('userName')}
             />
             {formik.touched.userName && formik.errors.userName ? (<div>{formik.errors.userName}</div>) : null}
+
             <label htmlFor='roomCode'>Room Code</label>
             <input
               id='roomCode'
@@ -103,6 +101,7 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
               }}
             />
             {formik.touched.roomCode && formik.errors.roomCode ? (<div>{formik.errors.roomCode}</div>) : null}
+
             <label htmlFor='password'>Room Password?</label>
             <input
               id='password'
@@ -110,6 +109,7 @@ const JoinModal: React.FC<JoinModalProps> = ({ onClose }) => {
               {...formik.getFieldProps('password')}
             />
             {formik.touched.password && formik.errors.password ? (<div>{formik.errors.password}</div>) : null}
+
             <button
               type='button'
               onClick={() => {

@@ -1,23 +1,84 @@
 import {  
     createContext,
+    useContext,
     useState,
     useEffect,
 } from 'react';
+import WaitingToJoinCard from './WaitingToJoinCard';
 import {Socket} from 'socket.io-client';
+import { SocketContext } from '../../SocketContext';
 import io from 'socket.io-client';
 import {useNavigate} from 'react-router-dom';
+//Todo? Make a card displaying the number of connected players.
 //TODO?: Create "Card" components
+//TODO: Create a "Winner" component
 export default function InGame() {
-    //connect to game
+    //Screw it. I can just call the server again to fill the information in rather than contexting it.
+    const [players,setPlayers] = useState([])//prob need to make a new interface, with cards and stuff.
+    const [connectedPlayers,setConnectedPlayers] = useState(0);//number connected including self
+    const [selfId,setSelfId] = useState(localStorage.getItem('userId'));
+    const [connected,setConnected] = useState(false);//if this user is connected. TBH unsure if needed/wanted since this would get invalidated via disconnection, and would become inconsistent
+
+    const roomCode = getRoomCode;
+    //todo? have getRoomCode to its own file
+    function getRoomCode() {
+        const roomCode = window.location.href;
+        let code = '';
+        if (roomCode.slice(-1) === '/') {
+          code = roomCode.slice(-5, -1);
+        } else {
+          code = roomCode.slice(-4);
+        }
+        return code;
+      }
+    // const roomCode = 
+    //TODO: learn useReducer for all cards in the game.
+    const {socket} = useContext(SocketContext)
+    useEffect(() => {
+        const gameConnect = async() => {
+            const connectResponse = await socket?.emitWithAck('gameConnect',selfId,roomCode);
+            if(connectResponse.connected == true)
+            {
+                setConnected(true);
+                setConnectedPlayers(connectResponse.nrConnected);
+                setPlayers(connectResponse.players);
+                //prob want to handle the nrConnected
+            }
+        }
+        gameConnect;
+        socket?.on('otherConnected',nrConnected => {
+            setConnectedPlayers(nrConnected);
+        })
+
+
+    },[])
 
     return(
-        <GameBoard>
-            {/* GameBoard probably holds the deck and that everybody practically shares from it... somehow. */}
-            <Deck/>
-            <Discard/>
-            <Player/>
-            {/* TODO: have a player for each player in the game... somehow. Only support 4 for now */}
-        </GameBoard>
+        <>
+        {/* TODO: Have WaitingToJoinCard superimpose over the rest of the page (maybe aside from quit, but not now) */}
+            {connectedPlayers != players.length && <WaitingToJoinCard/>}
+            {(connectedPlayers === players.length) && 
+                <div className='gameBoard'>
+                    <span className='drawDiscardArea'>
+                        <Deck/>
+                        <Discard/>
+                    </span>
+                    {players.filter(p=>p.userId != selfId) && players.map(p,i) => {
+                        <Player owner={players[i]}/> }}
+                    <You owner={selfId}/>
+                </div>        
+            }
+
+        
+        </>
+        // <GameBoard>
+        //     {/* GameBoard probably holds the deck and that everybody practically shares from it... somehow. */}
+        //     <Deck/>
+        //     <Discard/>
+        //     <You/>
+        //     <Player/>
+        //     {/* TODO: have a player for each player in the game... somehow. Only support 4 for now */}
+        // </GameBoard>
 
     )
 }

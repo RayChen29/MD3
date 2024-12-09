@@ -1,39 +1,40 @@
-import React from 'react'
-import ReactDOM from 'react-dom/client'
-import App from './App.tsx'
-import './index.css'
-import ErrorPage from "./errorpage"; <ErrorPage/>
-import GameRoom from "./gameRoom/GameRoom.tsx"
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
+import ErrorPage from './errorpage';
+import GameRoom from './gameRoom/GameRoom.tsx';
+import InGame from './gameRoom/inGame/inGame';
 import {
   createBrowserRouter,
   RouterProvider,
-  // Outlet, //I think we use <Outlet/> in an actual component? Need to learn
-  //Must use outlet when want to render child components
-  // Link //I think use alongside Outlet to allow Client Side Rendering?
-} from "react-router-dom";
-// import io from 'socket.io-client';
+} from 'react-router-dom';
+import { SocketProvider } from './SocketContext';
 
 const router = createBrowserRouter([
   {
-    path: "/",
-    element: <App/>,
-    errorElement: <ErrorPage/>,
-
+    path: '/',
+    element: <App />,
+    errorElement: <ErrorPage />,
   },
   {
-    path:"/:roomCode",
-    element: <GameRoom/>,
-    errorElement: <ErrorPage/>,
+    path: '/:roomCode',
+    element: <GameRoom />, // Renders GameRoom when navigating to /:roomCode
+    errorElement: <ErrorPage />,
+    children: [
+      {
+        path: 'game', // This is a nested route under /:roomCode
+        element: <InGame />, // Render InGame instead of GameRoom
+        errorElement: <ErrorPage />,
+      },
+    ],
   },
-  {
-    path:"/:roomCode/game",
-    //need to make InGame element
-    errorElement: <ErrorPage/>,
-  }
 ]);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <RouterProvider router={router} />
-  </React.StrictMode>,
-)
+  <SocketProvider>
+    <React.StrictMode>
+      <RouterProvider router={router} />
+    </React.StrictMode>
+  </SocketProvider>
+);

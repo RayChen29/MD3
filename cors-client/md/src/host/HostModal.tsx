@@ -1,114 +1,115 @@
-  import {Formik} from 'formik';
-  import './HostModal.css';
-  import * as Yup from 'yup';
-  import React from 'react';
-  import io from 'socket.io-client';
-  import { useNavigate } from 'react-router-dom';
-//
+import React, { useContext, useEffect } from 'react';
+import { Formik } from 'formik';
+import * as Yup from 'yup';
+import { useNavigate } from 'react-router-dom';
+import { SocketContext } from '../SocketContext'; // Import SocketContext
+import './HostModal.css';
 
-  interface HostModal {
-      onClose: () => void; // Define the type of onClose prop
-    }
+interface HostModalProps {
+  onClose: () => void;
+}
 
-  const HostModal: React.FC<HostModal> = ({onClose}) => {
-    const navigate = useNavigate()
-    const hostGameSocket = io('http://localhost:8080');//Remember to swap this out when deployment comes
-//TODO?: set a useEffect for this, not sure what the dependency would be though.    
-    hostGameSocket.on('connect', () =>{
-      console.log('Connected from Client Side');
+const HostModal: React.FC<HostModalProps> = ({ onClose }) => {
+  const { socket } = useContext(SocketContext);  // Access the socket from the context
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!socket) return; // Ensure the socket is available
+
+    // Handle redirection to the lobby
+    socket.on('redirectToLobby', (submitInfo) => {
+      const { userId, userName, roomCode } = submitInfo;
+      localStorage.setItem('userName', userName);
+      localStorage.setItem('userId', userId);
+      sessionStorage.setItem('roomCode', roomCode);
+      navigate('/' + roomCode);
     });
-//TODO?: set a useEffect for this, not sure what the dependency would be though. Might not need since not re-rendering with it
-    hostGameSocket.on('redirectToLobby',(submitInfo) => { 
-      const {userId, userName, roomCode } = submitInfo;
-      //TODO: Redirect client to the game room with this data.
-        localStorage.setItem("userName", userName);
-        localStorage.setItem("userId", userId);
-        //Session storage stuff should prob be going to a backend, but seems to work so far
-        sessionStorage.setItem("roomCode",roomCode);
-        hostGameSocket.disconnect();//Figuring that since we are leaving this page, we can just do this instead ofuseEffect?
-        //Redirect to the room
-        navigate('/'+roomCode);//How to correct this?
-      })
-      
-      //Generates a random string to be used as a room code.
-    const handleSubmit = () => {
-      const characters = "ABCDEFGHIJKLMNPQRSTUVWXYZ0123456789";//REMINDER: toUpper in the join section.
-      let roomCode = '';
-      for(let i = 0; i < 4; i++) {
-        roomCode += characters.charAt(Math.floor(Math.random() * characters.length));
-      }
-      return roomCode;
+
+    // Clean up the socket listener when the component unmounts
+    return () => {
+      socket.off('redirectToLobby');
+    };
+  }, [socket, navigate]);
+
+  const handleSubmit = () => {
+    const characters = 'ABCDEFGHIJKLMNPQRSTUVWXYZ0123456789'; // Exclude similar-looking characters
+    let roomCode = '';
+    for (let i = 0; i < 4; i++) {
+      roomCode += characters.charAt(Math.floor(Math.random() * characters.length));
     }
-    return(
-      <>
-      <button className='closeButton' onClick={onClose}>X</button>
-      <div className='modalDiv'>
-          <Formik
-            initialValues={{    
-              userName:'', 
-              roomCode:'',
-              password:'',
-            }}
-            validationSchema={Yup.object({
-              userName: Yup.string()
-              .max(14,'Must be 14 characters or less')
-              .required('Required'),
-              password: Yup.string()
-              .max(10,'Must be 10 characters or less')
-            })}
-            onSubmit={async (values,{setSubmitting}) => { 
-              setSubmitting(false); //I think don't need setSubmitting, but don't want things to break yet.
-              let generateCodeLoop = true;//Generates a working room code as long as needed
-
-              try {
-                while(generateCodeLoop == true)
-                  {
-                    values.roomCode = handleSubmit();//generates a random code to use
-                    const response = await hostGameSocket.emitWithAck("isRoomMade",values.roomCode);//Is it made?
-                    // if(response == true)
-                    if(response == false) //Do this stuff if room wasn't made, kill loop.
-                    {
-                      generateCodeLoop = false; 
-                      const userId = localStorage.getItem('userId');
-                      const submitInfo = {
-                        userId: userId,
-                        userName: values.userName,
-                        password:values.password,
-                        roomCode: values.roomCode,
-                      }
-                      hostGameSocket.emit("hostRoom",{...submitInfo});
-                    }
-                  }
-              }
-              catch(e) {
-                console.error('Error:',e);
-              }
-            }}
-          >
-            {formik => (
-              <form className='formDiv' onSubmit={formik.handleSubmit}>
-                <label htmlFor='userName'>Your Name</label>
-                <input
-                  id='userName'
-                  type='text'
-                  {...formik.getFieldProps('userName')}
-                />
-                {formik.touched.userName && formik.errors.userName ? (<div>{formik.errors.userName}</div>):null}
-                <label htmlFor='password'>Password(optional)</label>
-                <input
-                  id='password'
-                  type='password'
-                  {...formik.getFieldProps('password')}
-                />
-                {formik.touched.password && formik.errors.password ? (<div>{formik.errors.password}</div>):null}    
-                <button type='submit'>Host Room</button>      
-              </form>
-            )}
-          </Formik>
-
-          </div>
-      </>
-    );
+    return roomCode;
   };
 
-  export default HostModal;
+  return (
+    <>
+      <button className='closeButton' onClick={onClose}>X</button>
+      <div className='modalDiv'>
+        <Formik
+          initialValues={{
+            userName: '',
+            roomCode: '',
+            password: '',
+          }}
+          validationSchema={Yup.object({
+            userName: Yup.string()
+              .max(14, 'Must be 14 characters or less')
+              .required('Required'),
+            password: Yup.string()
+              .max(10, 'Must be 10 characters or less'),
+          })}
+          onSubmit={async (values, { setSubmitting }) => {
+            setSubmitting(false); // Disable form submission spinner
+            let generateCodeLoop = true;
+
+            if (socket) {
+              try {
+                while (generateCodeLoop) {
+                  values.roomCode = handleSubmit(); // Generate a random room code
+                  const response = await socket.emitWithAck('isRoomMade', values.roomCode); // Check if room exists
+
+                  if (!response) { // If the room doesn't exist
+                    generateCodeLoop = false;
+                    const userId = localStorage.getItem('userId');
+                    const submitInfo = {
+                      userId,
+                      userName: values.userName,
+                      password: values.password,
+                      roomCode: values.roomCode,
+                    };
+                    socket.emit('hostRoom', { ...submitInfo }); // Host the room
+                  }
+                }
+              } catch (e) {
+                console.error('Error:', e);
+              }
+            }
+          }}
+        >
+          {formik => (
+            <form className='formDiv' onSubmit={formik.handleSubmit}>
+              <label htmlFor='userName'>Your Name</label>
+              <input
+                id='userName'
+                type='text'
+                {...formik.getFieldProps('userName')}
+              />
+              {formik.touched.userName && formik.errors.userName ? (<div>{formik.errors.userName}</div>) : null}
+
+              <label htmlFor='password'>Password (optional)</label>
+              <input
+                id='password'
+                type='password'
+                {...formik.getFieldProps('password')}
+              />
+              {formik.touched.password && formik.errors.password ? (<div>{formik.errors.password}</div>) : null}
+
+              <button type='submit'>Host Room</button>
+            </form>
+          )}
+        </Formik>
+      </div>
+    </>
+  );
+};
+
+export default HostModal;
